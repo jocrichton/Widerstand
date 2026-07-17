@@ -184,6 +184,7 @@
     <header>
         <h1>IEPE Widerstands-Rechner (9 Geräte × 2 Kanäle)</h1>
         <div class="controls">
+            <button id="wakeLockBtn" onclick="toggleWakeLock()" style="background-color: #f59e0b;">Display anlassen 🔓</button>
             <button onclick="toggleTheme()" class="btn-secondary">Muster wechseln (Light/Dark)</button>
             <button onclick="exportCSV()" class="btn-secondary">CSV Export</button>
             <label class="btn-label btn-secondary">CSV Import<input type="file" id="csvFile" accept=".csv" onchange="importCSV(this)"></label>
@@ -402,6 +403,53 @@
         reader.readAsText(file);
     }
 
+let wakeLock = null;
+
+async function toggleWakeLock() {
+    const btn = document.getElementById('wakeLockBtn');
+    
+    if (!('wakeLock' in navigator)) {
+        alert('Die Wake-Lock API wird von diesem Browser leider nicht unterstützt.');
+        return;
+    }
+
+    try {
+        if (wakeLock === null) {
+            // Standby blockieren
+            wakeLock = await navigator.wakeLock.request('screen');
+            btn.textContent = 'Display bleibt an 🔒';
+            btn.style.backgroundColor = '#10b981'; // Wechselt auf Grün
+            
+            // Falls das System den Lock verliert (z.B. durch Tab-Wechsel)
+            wakeLock.addEventListener('release', () => {
+                wakeLock = null;
+                resetWakeLockBtn();
+            });
+        } else {
+            // Standby wieder erlauben
+            await wakeLock.release();
+            wakeLock = null;
+            resetWakeLockBtn();
+        }
+    } catch (err) {
+        console.error(`${err.name}, ${err.message}`);
+        resetWakeLockBtn();
+    }
+}
+
+function resetWakeLockBtn() {
+    const btn = document.getElementById('wakeLockBtn');
+    btn.textContent = 'Display anlassen 🔓';
+    btn.style.backgroundColor = '#f59e0b'; // Zurück auf Orange
+}
+
+// Automatisch nachladen, wenn man den Tab wechselt und zurückkommt
+document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+    }
+});
+    
     // Initialisierung beim Laden der Seite
     window.onload = function() {
         createGrid();
@@ -439,3 +487,5 @@
 
 </body>
 </html>
+
+
