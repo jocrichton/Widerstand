@@ -137,9 +137,17 @@
             border-radius: 6px;
             border: 1px solid transparent;
             transition: all 0.2s;
+            cursor: pointer; /* Zeigt Klickbarkeit an */
+            user-select: none;
         }
         .channel-row:not(:last-child) {
             border-bottom: 1px dashed var(--border-color);
+        }
+        .channel-row:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        [data-theme="dark"] .channel-row:hover {
+            background-color: rgba(255, 255, 255, 0.02);
         }
 
         .channel-row.completed {
@@ -173,7 +181,6 @@
             align-items: center;
             gap: 6px;
             cursor: pointer;
-            user-select: none;
             color: var(--text-color);
         }
         .checkbox-label input {
@@ -198,6 +205,7 @@
             border-radius: 4px;
             background-color: var(--bg-color);
             color: var(--text-color);
+            cursor: text;
         }
 
         .result-box {
@@ -211,7 +219,6 @@
 
         .error-text { color: var(--accent-error); font-weight: bold; }
 
-        /* Kompakt-Modus CSS Regeln (Nur Anzeige) */
         body[data-view="compact"] .input-group {
             display: none;
         }
@@ -357,7 +364,7 @@
             card.innerHTML = `
                 <h2>Gerät ${d}</h2>
                 ${[1, 2].map(ch => `
-                    <div class="channel-row" id="row_g${d}k${ch}">
+                    <div class="channel-row" id="row_g${d}k${ch}" onclick="handleRowClick(event, ${d}, ${ch})">
                         <div class="channel-header">
                             <div class="channel-title">Kanal ${ch}</div>
                             <label class="checkbox-label">
@@ -374,6 +381,25 @@
             `;
             grid.appendChild(card);
         }
+    }
+
+    // Abfangen des Klicks auf der gesamten Zeile
+    function handleRowClick(event, d, ch) {
+        // Wenn der Nutzer in das Zahlen-Eingabefeld tippt, tun wir nichts
+        if (event.target.tagName === 'INPUT' && event.target.type === 'number') {
+            return;
+        }
+
+        const checkbox = document.getElementById(`check_g${d}k${ch}`);
+        if (!checkbox) return;
+
+        // Wenn der Klick nicht direkt auf der Checkbox oder deren Label landete,
+        // müssen wir den Status hier im Code manuell umkehren.
+        if (!event.target.closest('.checkbox-label')) {
+            checkbox.checked = !checkbox.checked;
+        }
+
+        toggleComplete(d, ch);
     }
 
     function updateCalculation(d, ch, shouldSave = true) {
@@ -403,7 +429,6 @@
         }
     }
 
-    // Umschalten zwischen Bearbeiten und Nur Anzeige
     function toggleViewMode() {
         const body = document.body;
         const btn = document.getElementById('viewModeBtn');
@@ -705,7 +730,6 @@
         const savedTheme = localStorage.getItem('iepe_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
 
-        // Gespeicherten Ansichtsmodus laden
         const savedView = localStorage.getItem('iepe_view_mode');
         if (savedView === 'compact') {
             document.body.setAttribute('data-view', 'compact');
