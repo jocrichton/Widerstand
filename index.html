@@ -72,7 +72,7 @@
         .config-group {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             background-color: var(--card-bg);
             padding: 6px 12px;
             border-radius: 6px;
@@ -84,13 +84,44 @@
 
         .config-group input[type="number"] {
             width: 50px;
+            height: 36px;
             padding: 4px;
             border: 1px solid var(--border-color);
             border-radius: 4px;
             background-color: var(--bg-color);
             color: var(--text-color);
             text-align: center;
+            font-size: 1rem;
+            font-weight: bold;
+            box-sizing: border-box;
+            -moz-appearance: textfield;
         }
+        
+        /* Entfernt die Standard-Spin-Buttons im Browser */
+        .config-group input[type="number"]::-webkit-outer-spin-button,
+        .config-group input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Styling für die Schritt-Buttons (+/-) */
+        .btn-step {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background-color 0.2s;
+        }
+        .btn-step:hover { background-color: var(--primary-hover); }
 
         button, .btn-label {
             background-color: var(--primary-color);
@@ -267,7 +298,6 @@
             margin-bottom: 4px;
         }
 
-        /* Responsive Anpassungen für Smartphones */
         @media (max-width: 640px) {
             header {
                 flex-direction: column;
@@ -286,16 +316,16 @@
             .config-group {
                 grid-column: span 2;
                 justify-content: center;
+                padding: 10px;
             }
             button, .btn-label {
-                padding: 12px 4px; /* Mehr vertikale Touch-Fläche */
+                padding: 12px 4px;
                 font-size: 0.8rem;
                 line-height: 1.2;
                 height: 100%;
                 text-align: center;
                 box-sizing: border-box;
             }
-            /* Der wichtige QR-Knopf bekommt die volle Breite am Ende */
             .controls button:last-child {
                 grid-column: span 2;
             }
@@ -337,7 +367,9 @@
         <div class="controls">
             <div class="config-group">
                 <label for="deviceCount">Geräteanzahl:</label>
+                <button class="btn-step" onclick="adjustDeviceCount(-1)" type="button">−</button>
                 <input type="number" id="deviceCount" value="9" min="1" max="50" onchange="changeDeviceCount()">
+                <button class="btn-step" onclick="adjustDeviceCount(1)" type="button">+</button>
             </div>
             <button id="viewModeBtn" onclick="toggleViewMode()" style="background-color: #6b21a8;">Modus: Bearbeiten ✏️</button>
             <button id="wakeLockBtn" onclick="toggleWakeLock()" style="background-color: #f59e0b;">Display anlassen 🔓</button>
@@ -415,6 +447,21 @@
             rp: bestRp,
             dev: deviation
         };
+    }
+
+    // Funktion für die Schritt-Buttons
+    function adjustDeviceCount(amount) {
+        const input = document.getElementById('deviceCount');
+        if (!input) return;
+        let currentVal = parseInt(input.value) || 9;
+        currentVal += amount;
+        
+        // Grenzen einhalten
+        if (currentVal < 1) currentVal = 1;
+        if (currentVal > 50) currentVal = 50;
+        
+        input.value = currentVal;
+        changeDeviceCount(); // Löst die Neuberechnung/Neuerstellung aus
     }
 
     function createGrid() {
@@ -510,7 +557,6 @@
         }
     }
 
-    // Korrektur ID-Verkettung
     function toggleComplete(d, ch) {
         const checkbox = document.getElementById(`check_g${d}k${ch}`);
         const row = document.getElementById(`row_g${d}k${ch}`);
