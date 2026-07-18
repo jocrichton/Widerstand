@@ -15,6 +15,7 @@
             --primary-color: #2563eb;
             --primary-hover: #1d4ed8;
             --accent-error: #dc2626;
+            --accent-error-hover: #b91c1c;
         }
 
         [data-theme="dark"] {
@@ -57,6 +58,29 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .config-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: var(--card-bg);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .config-group input[type="number"] {
+            width: 50px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            text-align: center;
         }
 
         button, .btn-label {
@@ -74,9 +98,12 @@
         }
 
         button:hover, .btn-label:hover { background-color: var(--primary-hover); }
-
+        
         .btn-secondary { background-color: #4b5563; }
         .btn-secondary:hover { background-color: #374151; }
+        
+        .btn-danger { background-color: var(--accent-error); }
+        .btn-danger:hover { background-color: var(--accent-error-hover); }
 
         input[type="file"] { display: none; }
 
@@ -105,10 +132,31 @@
 
         .channel-row {
             margin-bottom: 15px;
-            padding-bottom: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
         }
         .channel-row:not(:last-child) {
             border-bottom: 1px dashed var(--border-color);
+        }
+
+        /* Visuelles Feedback beim Abhaken */
+        .channel-row.completed {
+            background-color: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            opacity: 0.6;
+        }
+        [data-theme="dark"] .channel-row.completed {
+            background-color: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .channel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
         }
 
         .channel-title {
@@ -116,8 +164,22 @@
             font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: 5px;
             color: var(--primary-color);
+        }
+        
+        .checkbox-label {
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+            color: var(--text-color);
+        }
+        .checkbox-label input {
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
         }
 
         .input-group {
@@ -182,13 +244,18 @@
 
 <div class="container">
     <header>
-        <h1>IEPE Widerstands-Rechner (9 Geräte × 2 Kanäle)</h1>
+        <h1>IEPE Widerstands-Rechner</h1>
         <div class="controls">
+            <div class="config-group">
+                <label for="deviceCount">Geräteanzahl:</label>
+                <input type="number" id="deviceCount" value="9" min="1" max="50" onchange="changeDeviceCount()">
+            </div>
             <button id="wakeLockBtn" onclick="toggleWakeLock()" style="background-color: #f59e0b;">Display anlassen 🔓</button>
             <button onclick="toggleTheme()" class="btn-secondary">Muster wechseln (Light/Dark)</button>
             <button onclick="exportCSV()" class="btn-secondary">CSV Export</button>
             <label class="btn-label btn-secondary">CSV Import<input type="file" id="csvFile" accept=".csv" onchange="importCSV(this)"></label>
-            <button onclick="generateQR()">QR-Code für Smartphone</button>
+            <button onclick="clearAllData()" class="btn-danger">Werte löschen 🗑️</button>
+            <button onclick="generateQR()">QR-Code generieren</button>
         </div>
     </header>
 
@@ -198,7 +265,7 @@
 <div id="qrModal" class="modal" onclick="closeModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <h2>QR-Code für den Lötplatz</h2>
-        <p>Scanne diesen Code mit dem Smartphone, um die aktuellen Werte zu übertragen.</p>
+        <p>Scanne diesen Code mit dem Smartphone, um Geräteanzahl, Werte und Haken zu übertragen.</p>
         <div id="qrcode"></div>
         <br>
         <button onclick="closeModal()" class="btn-secondary">Schließen</button>
@@ -208,8 +275,7 @@
 <script>
     // E24 Standardreihe
     const E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
-
-    // Generiert alle verfügbaren Widerstände von 10 Ohm bis 1 MOhm
+    
     const resistorPool = [];
     for (let exp = 1; exp <= 5; exp++) {
         const factor = Math.pow(10, exp);
@@ -218,10 +284,8 @@
         }
     }
 
-    // Berechnet die optimale Parallelschaltung (Ergebnis MUSS <= Target sein)
     function calculateParallel(target) {
         if (!target || target <= 0) return null;
-
         let bestR1 = null, bestR2 = null, bestRp = 0;
 
         for (let i = 0; i < resistorPool.length; i++) {
@@ -230,7 +294,6 @@
                 const r2 = resistorPool[j];
                 const rp = (r1 * r2) / (r1 + r2);
 
-                // Bedingung: Kleiner/gleich Zielwert UND besser als der bisherige Fund
                 if (rp <= target && rp > bestRp) {
                     bestRp = rp;
                     bestR1 = r1;
@@ -240,8 +303,7 @@
         }
 
         if (bestRp === 0) return null;
-
-        const deviation = ((bestRp - target) / target) * 100; // Wird negativ oder 0 sein
+        const deviation = ((bestRp - target) / target) * 100;
         return {
             r1: bestR1,
             r2: bestR2,
@@ -250,22 +312,28 @@
         };
     }
 
-    // Erzeugt die UI-Struktur für 9 Geräte
+    // Erzeugt die UI basierend auf der gewählten Geräteanzahl
     function createGrid() {
+        const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
         const grid = document.getElementById('devicesGrid');
         grid.innerHTML = '';
-
-        for (let d = 1; d <= 9; d++) {
+        
+        for (let d = 1; d <= numDevices; d++) {
             const card = document.createElement('div');
             card.className = 'card';
             card.innerHTML = `
                 <h2>Gerät ${d}</h2>
                 ${[1, 2].map(ch => `
-                    <div class="channel-row">
-                        <div class="channel-title">Kanal ${ch}</div>
+                    <div class="channel-row" id="row_g${d}k${ch}">
+                        <div class="channel-header">
+                            <div class="channel-title">Kanal ${ch}</div>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="check_g${d}k${ch}" onchange="toggleComplete(${d}, ${ch})"> Erledigt
+                            </label>
+                        </div>
                         <div class="input-group">
                             <label>Ziel (Ohm):</label>
-                            <input type="number" step="0.1" id="g${d}k${ch}" oninput="updateCalculation(${d}, ${ch})">
+                            <input type="number" step="0.1" id="g${d}k${ch}" oninput="updateCalculation(${d}, ${ch}, true)">
                         </div>
                         <div class="result-box" id="res${d}k${ch}">Werte eingeben...</div>
                     </div>
@@ -275,12 +343,14 @@
         }
     }
 
-    function updateCalculation(d, ch) {
+    function updateCalculation(d, ch, shouldSave = true) {
         const input = document.getElementById(`g${d}k${ch}`);
         const resultBox = document.getElementById(`res${d}k${ch}`);
+        if (!input || !resultBox) return;
+
         const target = parseFloat(input.value);
 
-        saveToStorage();
+        if (shouldSave) saveToStorage();
 
         if (isNaN(target) || target <= 0) {
             resultBox.innerHTML = 'Werte eingeben...';
@@ -300,34 +370,130 @@
         }
     }
 
-    // Lokale Speicherung & URL-Parsing
-    function saveToStorage() {
-        const data = {};
-        for (let d = 1; d <= 9; d++) {
-            for (let ch = 1; ch <= 2; ch++) {
-                data[`g${d}k${ch}`] = document.getElementById(`g${d}k${ch}`).value;
+    // Steuert das optische Ausgrauen beim Abhaken
+    function toggleComplete(d, ch) {
+        const checkbox = document.getElementById(`check_g${d}k${ch}`);
+        const row = document.getElementById(`row_g${d}k${ch}`);
+        if (checkbox && row) {
+            if (checkbox.checked) {
+                row.classList.add('completed');
+            } else {
+                row.classList.remove('completed');
             }
         }
-        localStorage.setItem('iepe_cal_data', JSON.stringify(data));
+        saveToStorage();
+    }
+
+    // Ändert die Gerätezahl ohne bestehende Eingaben der vorderen Geräte zu verlieren
+    function changeDeviceCount() {
+        const previousCount = document.querySelectorAll('.card').length;
+        const backup = { values: {}, checked: {} };
+        
+        for (let d = 1; d <= previousCount; d++) {
+            for (let ch = 1; ch <= 2; ch++) {
+                const input = document.getElementById(`g${d}k${ch}`);
+                const checkbox = document.getElementById(`check_g${d}k${ch}`);
+                if (input) backup.values[`g${d}k${ch}`] = input.value;
+                if (checkbox) backup.checked[`g${d}k${ch}`] = checkbox.checked;
+            }
+        }
+        
+        backup.numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+        
+        createGrid();
+        loadData(backup);
+        saveToStorage();
+    }
+
+    function saveToStorage() {
+        const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+        const data = {
+            numDevices: numDevices,
+            values: {},
+            checked: {}
+        };
+        for (let d = 1; d <= numDevices; d++) {
+            for (let ch = 1; ch <= 2; ch++) {
+                const input = document.getElementById(`g${d}k${ch}`);
+                const checkbox = document.getElementById(`check_g${d}k${ch}`);
+                if (input) data.values[`g${d}k${ch}`] = input.value;
+                if (checkbox) data.checked[`g${d}k${ch}`] = checkbox.checked;
+            }
+        }
+        localStorage.setItem('iepe_cal_config', JSON.stringify(data));
     }
 
     function loadData(sourceData) {
-        const data = sourceData || JSON.parse(localStorage.getItem('iepe_cal_data'));
+        let data = sourceData;
+        if (!data) {
+            const raw = localStorage.getItem('iepe_cal_config');
+            if (raw) {
+                try { data = JSON.parse(raw); } catch(e) { data = null; }
+            }
+        }
+        
+        // Abwärtskompatibilität zum alten Speicherformat
+        if (!data) {
+            const oldRaw = localStorage.getItem('iepe_cal_data');
+            if (oldRaw) {
+                try { data = { numDevices: 9, values: JSON.parse(oldRaw), checked: {} }; } catch(e) {}
+            }
+        }
+
         if (!data) return;
 
-        for (let d = 1; d <= 9; d++) {
+        if (data.numDevices) {
+            document.getElementById('deviceCount').value = data.numDevices;
+            createGrid(); 
+        }
+
+        const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+
+        for (let d = 1; d <= numDevices; d++) {
             for (let ch = 1; ch <= 2; ch++) {
-                const val = data[`g${d}k${ch}`] || '';
+                const val = data.values ? (data.values[`g${d}k${ch}`] || '') : '';
+                const isChecked = data.checked ? (data.checked[`g${d}k${ch}`] === true) : false;
+                
                 const input = document.getElementById(`g${d}k${ch}`);
+                const checkbox = document.getElementById(`check_g${d}k${ch}`);
+                const row = document.getElementById(`row_g${d}k${ch}`);
+
                 if (input) {
                     input.value = val;
-                    updateCalculation(d, ch);
+                    updateCalculation(d, ch, false); 
+                }
+                if (checkbox) {
+                    checkbox.checked = isChecked;
+                    if (row) {
+                        if (isChecked) row.classList.add('completed');
+                        else row.classList.remove('completed');
+                    }
                 }
             }
         }
     }
 
-    // Dark/Light Mode
+    // Zurücksetzen mit Sicherheitsabfrage
+    function clearAllData() {
+        if (confirm('Möchten Sie wirklich alle eingetragenen Werte und Haken unwiderruflich löschen?')) {
+            const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+            for (let d = 1; d <= numDevices; d++) {
+                for (let ch = 1; ch <= 2; ch++) {
+                    const input = document.getElementById(`g${d}k${ch}`);
+                    const checkbox = document.getElementById(`check_g${d}k${ch}`);
+                    const row = document.getElementById(`row_g${d}k${ch}`);
+                    
+                    if (input) input.value = '';
+                    if (checkbox) checkbox.checked = false;
+                    if (row) row.classList.remove('completed');
+                    
+                    updateCalculation(d, ch, false);
+                }
+            }
+            saveToStorage();
+        }
+    }
+
     function toggleTheme() {
         const current = document.documentElement.getAttribute('data-theme');
         const next = current === 'dark' ? 'light' : 'dark';
@@ -335,15 +501,16 @@
         localStorage.setItem('iepe_theme', next);
     }
 
-    // QR-Code Logik
+    // QR-Code Logik überträgt nun auch Gerätezahl und Haken-Status
     function generateQR() {
-        const values = [];
-        for (let d = 1; d <= 9; d++) {
+        const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+        const values = [numDevices]; 
+        for (let d = 1; d <= numDevices; d++) {
             for (let ch = 1; ch <= 2; ch++) {
                 values.push(document.getElementById(`g${d}k${ch}`).value || '0');
+                values.push(document.getElementById(`check_g${d}k${ch}`).checked ? '1' : '0');
             }
         }
-        // Komprimierte Base64 Codierung für kurze URLs
         const encodedData = btoa(values.join(','));
         const shareUrl = `${window.location.origin}${window.location.pathname}#d=${encodedData}`;
 
@@ -360,13 +527,14 @@
         document.getElementById('qrModal').style.display = 'none';
     }
 
-    // CSV Export / Import
     function exportCSV() {
-        let csv = 'Gerat,Kanal,Ziel_Ohm\n';
-        for (let d = 1; d <= 9; d++) {
+        const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
+        let csv = 'Gerat,Kanal,Ziel_Ohm,Erledigt\n';
+        for (let d = 1; d <= numDevices; d++) {
             for (let ch = 1; ch <= 2; ch++) {
                 const val = document.getElementById(`g${d}k${ch}`).value || '0';
-                csv += `${d},${ch},${val}\n`;
+                const isChecked = document.getElementById(`check_g${d}k${ch}`).checked ? '1' : '0';
+                csv += `${d},${ch},${val},${isChecked}\n`;
             }
         }
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -386,106 +554,114 @@
         reader.onload = function(e) {
             const text = e.target.result;
             const lines = text.split('\n');
-            const data = {};
-
+            const data = { numDevices: 0, values: {}, checked: {} };
+            
+            let maxDevice = 0;
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(',');
                 if (cols.length >= 3) {
-                    const d = cols[0].trim();
+                    const d = parseInt(cols[0].trim());
                     const ch = cols[1].trim();
                     const val = cols[2].trim();
-                    if(d && ch) data[`g${d}k${ch}`] = val === '0' ? '' : val;
+                    const isChecked = cols[3] ? cols[3].trim() === '1' : false;
+                    
+                    if(!isNaN(d) && ch) {
+                        if (d > maxDevice) maxDevice = d;
+                        data.values[`g${d}k${ch}`] = val === '0' ? '' : val;
+                        data.checked[`g${d}k${ch}`] = isChecked;
+                    }
                 }
             }
+            data.numDevices = maxDevice || 9;
+            document.getElementById('deviceCount').value = data.numDevices;
+            
+            createGrid();
             loadData(data);
             saveToStorage();
         };
         reader.readAsText(file);
     }
 
-let wakeLock = null;
-
-async function toggleWakeLock() {
-    const btn = document.getElementById('wakeLockBtn');
-    
-    if (!('wakeLock' in navigator)) {
-        alert('Die Wake-Lock API wird von diesem Browser leider nicht unterstützt.');
-        return;
-    }
-
-    try {
-        if (wakeLock === null) {
-            // Standby blockieren
-            wakeLock = await navigator.wakeLock.request('screen');
-            btn.textContent = 'Display bleibt an 🔒';
-            btn.style.backgroundColor = '#10b981'; // Wechselt auf Grün
-            
-            // Falls das System den Lock verliert (z.B. durch Tab-Wechsel)
-            wakeLock.addEventListener('release', () => {
+    // Screen Wake Lock API
+    let wakeLock = null;
+    async function toggleWakeLock() {
+        const btn = document.getElementById('wakeLockBtn');
+        if (!('wakeLock' in navigator)) {
+            alert('Die Wake-Lock API wird von diesem Browser leider nicht unterstützt.');
+            return;
+        }
+        try {
+            if (wakeLock === null) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                btn.textContent = 'Display bleibt an 🔒';
+                btn.style.backgroundColor = '#10b981';
+                wakeLock.addEventListener('release', () => {
+                    wakeLock = null;
+                    resetWakeLockBtn();
+                });
+            } else {
+                await wakeLock.release();
                 wakeLock = null;
                 resetWakeLockBtn();
-            });
-        } else {
-            // Standby wieder erlauben
-            await wakeLock.release();
-            wakeLock = null;
+            }
+        } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
             resetWakeLockBtn();
         }
-    } catch (err) {
-        console.error(`${err.name}, ${err.message}`);
-        resetWakeLockBtn();
     }
-}
 
-function resetWakeLockBtn() {
-    const btn = document.getElementById('wakeLockBtn');
-    btn.textContent = 'Display anlassen 🔓';
-    btn.style.backgroundColor = '#f59e0b'; // Zurück auf Orange
-}
-
-// Automatisch nachladen, wenn man den Tab wechselt und zurückkommt
-document.addEventListener('visibilitychange', async () => {
-    if (wakeLock !== null && document.visibilityState === 'visible') {
-        wakeLock = await navigator.wakeLock.request('screen');
+    function resetWakeLockBtn() {
+        const btn = document.getElementById('wakeLockBtn');
+        btn.textContent = 'Display anlassen 🔓';
+        btn.style.backgroundColor = '#f59e0b';
     }
-});
-    
-    // Initialisierung beim Laden der Seite
+
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            wakeLock = await navigator.wakeLock.request('screen');
+        }
+    });
+
     window.onload = function() {
-        createGrid();
-
-        // Theme laden
-        const savedTheme = localStorage.getItem('iepe_theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-
-        // Prüfen ob Daten über den QR-Code/URL kommen
+        // Zuerst prüfen, ob Daten via QR-URL reinkommen
         if (window.location.hash && window.location.hash.startsWith('#d=')) {
             try {
                 const base64 = window.location.hash.substring(3);
                 const rawValues = atob(base64).split(',');
-                const data = {};
-                let index = 0;
-                for (let d = 1; d <= 9; d++) {
+                
+                const numDevices = parseInt(rawValues[0]) || 9;
+                const data = { numDevices: numDevices, values: {}, checked: {} };
+                
+                let index = 1;
+                for (let d = 1; d <= numDevices; d++) {
                     for (let ch = 1; ch <= 2; ch++) {
-                        data[`g${d}k${ch}`] = rawValues[index] === '0' ? '' : rawValues[index];
+                        data.values[`g${d}k${ch}`] = rawValues[index] === '0' ? '' : rawValues[index];
+                        index++;
+                        data.checked[`g${d}k${ch}`] = rawValues[index] === '1';
                         index++;
                     }
                 }
+                
+                document.getElementById('deviceCount').value = numDevices;
+                createGrid();
                 loadData(data);
                 saveToStorage();
-                // URL bereinigen, damit ein Neuladen die Daten nicht überschreibt
-                window.location.hash = '';
+                window.location.hash = ''; // URL aufräumen
             } catch (e) {
-                console.error("Fehler beim Laden der URL-Daten", e);
+                console.error("Fehler beim Parsen der QR-Daten", e);
+                createGrid();
                 loadData();
             }
         } else {
+            // Ansonsten aus dem localStorage laden
+            createGrid();
             loadData();
         }
+        
+        const savedTheme = localStorage.getItem('iepe_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
     };
 </script>
 
 </body>
 </html>
-
-
