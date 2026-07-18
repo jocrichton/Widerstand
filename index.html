@@ -141,7 +141,6 @@
             border-bottom: 1px dashed var(--border-color);
         }
 
-        /* Visuelles Feedback beim Abhaken */
         .channel-row.completed {
             background-color: rgba(16, 185, 129, 0.08);
             border: 1px solid rgba(16, 185, 129, 0.2);
@@ -211,7 +210,6 @@
 
         .error-text { color: var(--accent-error); font-weight: bold; }
 
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -284,6 +282,18 @@
         }
     }
 
+    // Wandelt glatte Zahlen in SI-Präfixe um (z.B. 22000 -> "22 k Ohm")
+    function formatOhm(val) {
+        if (val === null || val === undefined || isNaN(val) || val <= 0) return '0 Ohm';
+        if (val >= 1000000) {
+            return parseFloat((val / 1000000).toFixed(2)) + ' M Ohm';
+        }
+        if (val >= 1000) {
+            return parseFloat((val / 1000).toFixed(2)) + ' k Ohm';
+        }
+        return parseFloat(val.toFixed(2)) + ' Ohm';
+    }
+
     function calculateParallel(target) {
         if (!target || target <= 0) return null;
         let bestR1 = null, bestR2 = null, bestRp = 0;
@@ -307,12 +317,11 @@
         return {
             r1: bestR1,
             r2: bestR2,
-            rp: Math.round(bestRp * 100) / 100,
+            rp: bestRp,
             dev: Math.round(deviation * 100) / 100
         };
     }
 
-    // Erzeugt die UI basierend auf der gewählten Geräteanzahl
     function createGrid() {
         const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
         const grid = document.getElementById('devicesGrid');
@@ -362,15 +371,14 @@
         if (result) {
             const isError = Math.abs(result.dev) > 1.0;
             resultBox.innerHTML = `
-                <strong>R1:</strong> ${result.r1} Ohm | <strong>R2:</strong> ${result.r2} Ohm<br>
-                <strong>Effektiv:</strong> ${result.rp} Ohm (<span class="${isError ? 'error-text' : ''}">${result.dev}%</span>)
+                <strong>R1:</strong> ${formatOhm(result.r1)} | <strong>R2:</strong> ${formatOhm(result.r2)}<br>
+                <strong>Effektiv:</strong> ${formatOhm(result.rp)} (<span class="${isError ? 'error-text' : ''}">${result.dev}%</span>)
             `;
         } else {
             resultBox.innerHTML = '<span class="error-text">Keine Kombination gefunden</span>';
         }
     }
 
-    // Steuert das optische Ausgrauen beim Abhaken
     function toggleComplete(d, ch) {
         const checkbox = document.getElementById(`check_g${d}k${ch}`);
         const row = document.getElementById(`row_g${d}k${ch}`);
@@ -384,7 +392,6 @@
         saveToStorage();
     }
 
-    // Ändert die Gerätezahl ohne bestehende Eingaben der vorderen Geräte zu verlieren
     function changeDeviceCount() {
         const previousCount = document.querySelectorAll('.card').length;
         const backup = { values: {}, checked: {} };
@@ -432,7 +439,6 @@
             }
         }
         
-        // Abwärtskompatibilität zum alten Speicherformat
         if (!data) {
             const oldRaw = localStorage.getItem('iepe_cal_data');
             if (oldRaw) {
@@ -473,7 +479,6 @@
         }
     }
 
-    // Zurücksetzen mit Sicherheitsabfrage
     function clearAllData() {
         if (confirm('Möchten Sie wirklich alle eingetragenen Werte und Haken unwiderruflich löschen?')) {
             const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
@@ -501,7 +506,6 @@
         localStorage.setItem('iepe_theme', next);
     }
 
-    // QR-Code Logik überträgt nun auch Gerätezahl und Haken-Status
     function generateQR() {
         const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
         const values = [numDevices]; 
@@ -582,7 +586,6 @@
         reader.readAsText(file);
     }
 
-    // Screen Wake Lock API
     let wakeLock = null;
     async function toggleWakeLock() {
         const btn = document.getElementById('wakeLockBtn');
@@ -623,7 +626,6 @@
     });
 
     window.onload = function() {
-        // Zuerst prüfen, ob Daten via QR-URL reinkommen
         if (window.location.hash && window.location.hash.startsWith('#d=')) {
             try {
                 const base64 = window.location.hash.substring(3);
@@ -646,14 +648,13 @@
                 createGrid();
                 loadData(data);
                 saveToStorage();
-                window.location.hash = ''; // URL aufräumen
+                window.location.hash = '';
             } catch (e) {
                 console.error("Fehler beim Parsen der QR-Daten", e);
                 createGrid();
                 loadData();
             }
         } else {
-            // Ansonsten aus dem localStorage laden
             createGrid();
             loadData();
         }
