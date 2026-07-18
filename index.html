@@ -17,7 +17,6 @@
             --accent-error: #dc2626;
             --accent-error-hover: #b91c1c;
             
-            /* Farben für die Widerstands-Hervorhebung (Light Mode) */
             --badge-bg: #fef3c7;
             --badge-text: #b45309;
             --badge-border: #f59e0b;
@@ -31,7 +30,6 @@
             --primary-color: #3b82f6;
             --primary-hover: #60a5fa;
 
-            /* Farben für die Widerstands-Hervorhebung (Dark Mode) */
             --badge-bg: #78350f;
             --badge-text: #fef3c7;
             --badge-border: #b45309;
@@ -81,6 +79,7 @@
             border: 1px solid var(--border-color);
             font-size: 0.9rem;
             font-weight: 500;
+            box-sizing: border-box;
         }
 
         .config-group input[type="number"] {
@@ -105,6 +104,7 @@
             transition: background-color 0.2s;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
         }
 
         button:hover, .btn-label:hover { background-color: var(--primary-hover); }
@@ -227,7 +227,6 @@
         }
         [data-theme="dark"] .result-box { background-color: rgba(255,255,255,0.03); }
 
-        /* Stil für die hervorgehobenen Widerstände */
         .resistor-display {
             display: flex;
             gap: 8px;
@@ -266,6 +265,40 @@
         }
         body[data-view="compact"] .channel-header {
             margin-bottom: 4px;
+        }
+
+        /* Responsive Anpassungen für Smartphones */
+        @media (max-width: 640px) {
+            header {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+            h1 {
+                margin-bottom: 15px;
+            }
+            .controls {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                width: 100%;
+            }
+            .config-group {
+                grid-column: span 2;
+                justify-content: center;
+            }
+            button, .btn-label {
+                padding: 12px 4px; /* Mehr vertikale Touch-Fläche */
+                font-size: 0.8rem;
+                line-height: 1.2;
+                height: 100%;
+                text-align: center;
+                box-sizing: border-box;
+            }
+            /* Der wichtige QR-Knopf bekommt die volle Breite am Ende */
+            .controls button:last-child {
+                grid-column: span 2;
+            }
         }
 
         .modal {
@@ -330,7 +363,6 @@
 </div>
 
 <script>
-    // E24 Standardreihe
     const E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
     
     const resistorPool = [];
@@ -478,9 +510,10 @@
         }
     }
 
+    // Korrektur ID-Verkettung
     function toggleComplete(d, ch) {
         const checkbox = document.getElementById(`check_g${d}k${ch}`);
-        const row = document.getElementById('row_g' + d + 'k' + ch);
+        const row = document.getElementById(`row_g${d}k${ch}`);
         if (checkbox && row) {
             if (checkbox.checked) {
                 row.classList.add('completed');
