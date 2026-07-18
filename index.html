@@ -282,16 +282,22 @@
         }
     }
 
-    // Wandelt glatte Zahlen in SI-Präfixe um (z.B. 22000 -> "22 k Ohm")
+    // Instanziiert den lokalen System-Formatierer (max. 2 Nachkommastellen)
+    const localFormatter = new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    });
+
+    // Wandelt Zahlen passend zum lokalen System um (z.B. 22000 -> "22 k Ohm" bzw. im DE-System mit Komma)
     function formatOhm(val) {
-        if (val === null || val === undefined || isNaN(val) || val <= 0) return '0 Ohm';
+        if (val === null || val === undefined || isNaN(val) || val <= 0) return localFormatter.format(0) + ' Ohm';
         if (val >= 1000000) {
-            return parseFloat((val / 1000000).toFixed(2)) + ' M Ohm';
+            return localFormatter.format(val / 1000000) + ' M Ohm';
         }
         if (val >= 1000) {
-            return parseFloat((val / 1000).toFixed(2)) + ' k Ohm';
+            return localFormatter.format(val / 1000) + ' k Ohm';
         }
-        return parseFloat(val.toFixed(2)) + ' Ohm';
+        return localFormatter.format(val) + ' Ohm';
     }
 
     function calculateParallel(target) {
@@ -318,7 +324,7 @@
             r1: bestR1,
             r2: bestR2,
             rp: bestRp,
-            dev: Math.round(deviation * 100) / 100
+            dev: deviation
         };
     }
 
@@ -372,7 +378,7 @@
             const isError = Math.abs(result.dev) > 1.0;
             resultBox.innerHTML = `
                 <strong>R1:</strong> ${formatOhm(result.r1)} | <strong>R2:</strong> ${formatOhm(result.r2)}<br>
-                <strong>Effektiv:</strong> ${formatOhm(result.rp)} (<span class="${isError ? 'error-text' : ''}">${result.dev}%</span>)
+                <strong>Effektiv:</strong> ${formatOhm(result.rp)} (<span class="${isError ? 'error-text' : ''}">${localFormatter.format(result.dev)}%</span>)
             `;
         } else {
             resultBox.innerHTML = '<span class="error-text">Keine Kombination gefunden</span>';
