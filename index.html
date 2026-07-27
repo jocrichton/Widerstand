@@ -850,6 +850,27 @@
             }
         }
     };
+
+    document.addEventListener('keydown', function(event) {
+    // Prüfen, ob die Enter-Taste gedrückt wurde
+    if (event.key === 'Enter') {
+        
+        // Verhindert das Standardverhalten (z. B. ein Formular abzusenden und die Seite neu zu laden)
+        event.preventDefault();
+
+        // Alle Eingabefelder auf der Seite in einer Liste sammeln
+        const inputs = Array.from(document.querySelectorAll('input'));
+
+        // Das Feld finden, in dem du dich gerade befindest
+        const currentIndex = inputs.indexOf(event.target);
+
+        // Wenn das aktuelle Feld ein Input ist und noch ein weiteres danach existiert
+        if (currentIndex > -1 && currentIndex < inputs.length - 1) {
+            inputs[currentIndex + 1].focus(); // Fokus ins nächste Feld setzen
+        }
+    }
+});
+
 </script>
 
 </body>
