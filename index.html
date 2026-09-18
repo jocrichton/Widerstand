@@ -389,7 +389,8 @@
             <button onclick="exportCSV()" class="btn-secondary">CSV Export</button>
             <label class="btn-label btn-secondary">CSV Import<input type="file" id="csvFile" accept=".csv" onchange="importCSV(this)"></label>
             <button onclick="clearAllData()" class="btn-danger">Werte löschen 🗑️</button>
-            <button onclick="generateQR()">QR-Code generieren</button>
+            <button onclick="generateQR()">QR-Code anzeigen</button>
+            <button onclick="openImportModal()" class="btn-secondary">Code importieren</button>
         </div>
     </header>
 
@@ -398,11 +399,24 @@
 
 <div id="qrModal" class="modal" onclick="closeModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
-        <h2>QR-Code für den Lötplatz</h2>
-        <p>Scanne diesen Code mit dem Smartphone, um Geräteanzahl, Werte und Haken zu übertragen.</p>
+        <h2>Code für das Smartphone</h2>
+        <p>Mit der Kamera-App scannen, den erkannten Text kopieren und auf dem Smartphone über „Code importieren" einfügen. Es ist <strong>keine</strong> Internet- oder Netzwerkverbindung nötig – beide Geräte brauchen nur ihre eigene Kopie dieser Seite geöffnet zu haben.</p>
         <div id="qrcode"></div>
-        <br>
+        <textarea id="qrShareCode" readonly rows="3" onclick="this.select()" style="width:100%; box-sizing:border-box; margin-top:10px; padding:8px; border-radius:4px; border:1px solid var(--border-color); background-color:var(--bg-color); color:var(--text-color); font-family:monospace; font-size:0.75rem; resize:none;"></textarea>
+        <br><br>
+        <button id="copyCodeBtn" onclick="copyShareCode()" class="btn-secondary">Code kopieren</button>
         <button onclick="closeModal()" class="btn-secondary">Schließen</button>
+    </div>
+</div>
+
+<div id="importModal" class="modal" onclick="closeImportModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h2>Code importieren</h2>
+        <p>QR-Code mit der Kamera-App scannen und den erkannten Text hier einfügen (oder den Code direkt vom anderen Gerät kopieren).</p>
+        <textarea id="importCodeInput" rows="4" placeholder="IEPE1:...." style="width:100%; box-sizing:border-box; padding:8px; border-radius:4px; border:1px solid var(--border-color); background-color:var(--bg-color); color:var(--text-color); font-family:monospace;"></textarea>
+        <br><br>
+        <button onclick="submitImportCode()">Übernehmen</button>
+        <button onclick="closeImportModal()" class="btn-secondary">Abbrechen</button>
     </div>
 </div>
 
@@ -699,9 +713,11 @@
         localStorage.setItem('iepe_theme', next);
     }
 
+    const SHARE_CODE_PREFIX = 'IEPE1:';
+
     function generateQR() {
         const numDevices = parseInt(document.getElementById('deviceCount').value) || 9;
-        const values = [numDevices]; 
+        const values = [numDevices];
         for (let d = 1; d <= numDevices; d++) {
             for (let ch = 1; ch <= 2; ch++) {
                 values.push(document.getElementById(`g${d}k${ch}`).value || '0');
@@ -709,19 +725,98 @@
             }
         }
         const encodedData = btoa(values.join(','));
-        const shareUrl = `${window.location.origin}${window.location.pathname}#d=${encodedData}`;
+        const shareCode = SHARE_CODE_PREFIX + encodedData;
 
         document.getElementById('qrcode').innerHTML = '';
         new QRCode(document.getElementById('qrcode'), {
-            text: shareUrl,
+            text: shareCode,
             width: 256,
             height: 256
         });
+        document.getElementById('qrShareCode').value = shareCode;
         document.getElementById('qrModal').style.display = 'flex';
     }
 
     function closeModal() {
         document.getElementById('qrModal').style.display = 'none';
+    }
+
+    function copyShareCode() {
+        const codeField = document.getElementById('qrShareCode');
+        const btn = document.getElementById('copyCodeBtn');
+        if (!codeField) return;
+
+        codeField.select();
+        codeField.setSelectionRange(0, 99999);
+
+        const showCopied = () => {
+            if (!btn) return;
+            const original = btn.textContent;
+            btn.textContent = 'Kopiert ✓';
+            setTimeout(() => { btn.textContent = original; }, 1500);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(codeField.value).then(showCopied).catch(() => {
+                document.execCommand('copy');
+                showCopied();
+            });
+        } else {
+            document.execCommand('copy');
+            showCopied();
+        }
+    }
+
+    function applyShareCode(rawCode) {
+        if (!rawCode) return false;
+        let code = rawCode.trim();
+        if (code.startsWith(SHARE_CODE_PREFIX)) {
+            code = code.substring(SHARE_CODE_PREFIX.length);
+        }
+
+        try {
+            const rawValues = atob(code).split(',');
+            const numDevices = parseInt(rawValues[0]) || 9;
+            const data = { numDevices: numDevices, values: {}, checked: {} };
+
+            let index = 1;
+            for (let d = 1; d <= numDevices; d++) {
+                for (let ch = 1; ch <= 2; ch++) {
+                    data.values[`g${d}k${ch}`] = rawValues[index] === '0' ? '' : rawValues[index];
+                    index++;
+                    data.checked[`g${d}k${ch}`] = rawValues[index] === '1';
+                    index++;
+                }
+            }
+
+            document.getElementById('deviceCount').value = numDevices;
+            createGrid();
+            loadData(data);
+            saveToStorage();
+            return true;
+        } catch (e) {
+            console.error('Fehler beim Parsen des Codes', e);
+            return false;
+        }
+    }
+
+    function openImportModal() {
+        document.getElementById('importCodeInput').value = '';
+        document.getElementById('importModal').style.display = 'flex';
+        document.getElementById('importCodeInput').focus();
+    }
+
+    function closeImportModal() {
+        document.getElementById('importModal').style.display = 'none';
+    }
+
+    function submitImportCode() {
+        const raw = document.getElementById('importCodeInput').value;
+        if (applyShareCode(raw)) {
+            closeImportModal();
+        } else {
+            alert('Der Code konnte nicht gelesen werden. Bitte prüfen und erneut versuchen.');
+        }
     }
 
     function exportCSV() {
@@ -820,30 +915,9 @@
 
     window.onload = function() {
         if (window.location.hash && window.location.hash.startsWith('#d=')) {
-            try {
-                const base64 = window.location.hash.substring(3);
-                const rawValues = atob(base64).split(',');
-                
-                const numDevices = parseInt(rawValues[0]) || 9;
-                const data = { numDevices: numDevices, values: {}, checked: {} };
-                
-                let index = 1;
-                for (let d = 1; d <= numDevices; d++) {
-                    for (let ch = 1; ch <= 2; ch++) {
-                        data.values[`g${d}k${ch}`] = rawValues[index] === '0' ? '' : rawValues[index];
-                        index++;
-                        data.checked[`g${d}k${ch}`] = rawValues[index] === '1';
-                        index++;
-                    }
-                }
-                
-                document.getElementById('deviceCount').value = numDevices;
-                createGrid();
-                loadData(data);
-                saveToStorage();
-                window.location.hash = '';
-            } catch (e) {
-                console.error("Fehler beim Parsen der QR-Daten", e);
+            const applied = applyShareCode(window.location.hash.substring(3));
+            window.location.hash = '';
+            if (!applied) {
                 createGrid();
                 loadData();
             }
@@ -851,7 +925,7 @@
             createGrid();
             loadData();
         }
-        
+
         const savedTheme = localStorage.getItem('iepe_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
 
