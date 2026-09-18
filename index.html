@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IEPE Kalibrierungs-Rechner</title>
-    <!-- QRCode.js Library via CDN -->
+    <!-- QRCode.js Library via CDN (Code anzeigen) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- jsQR Library via CDN (Code per Kamera scannen) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
     <style>
         :root {
             --bg-color: #f3f4f6;
@@ -412,13 +414,25 @@
 <div id="importModal" class="modal" onclick="closeImportModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <h2>Code importieren</h2>
-        <p>QR-Code mit der Kamera-App scannen und den erkannten Text hier einfügen (oder den Code direkt vom anderen Gerät kopieren).</p>
+        <p>Kamera starten und den QR-Code direkt scannen – oder den Code manuell einfügen. Beides funktioniert komplett ohne Internet- oder Netzwerkzugriff.</p>
+
+        <button id="startScanBtn" onclick="startScan()">📷 Kamera starten</button>
+        <div id="scanContainer" style="display:none; margin-top:12px;">
+            <video id="scanVideo" playsinline autoplay muted style="width:100%; max-width:320px; border-radius:6px; background:#000;"></video>
+            <p id="scanStatus" style="font-size:0.85rem; opacity:0.8;">Code in den Rahmen halten…</p>
+            <button onclick="stopScan()" class="btn-secondary">Kamera stoppen</button>
+        </div>
+
+        <hr style="margin:20px 0; border:none; border-top:1px solid var(--border-color);">
+
+        <p style="font-size:0.85rem;">Alternativ: Code manuell einfügen</p>
         <textarea id="importCodeInput" rows="4" placeholder="IEPE1:...." style="width:100%; box-sizing:border-box; padding:8px; border-radius:4px; border:1px solid var(--border-color); background-color:var(--bg-color); color:var(--text-color); font-family:monospace;"></textarea>
         <br><br>
         <button onclick="submitImportCode()">Übernehmen</button>
         <button onclick="closeImportModal()" class="btn-secondary">Abbrechen</button>
     </div>
 </div>
+<canvas id="scanCanvas" style="display:none;"></canvas>
 
 <script>
     const E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
@@ -803,10 +817,10 @@
     function openImportModal() {
         document.getElementById('importCodeInput').value = '';
         document.getElementById('importModal').style.display = 'flex';
-        document.getElementById('importCodeInput').focus();
     }
 
     function closeImportModal() {
+        stopScan();
         document.getElementById('importModal').style.display = 'none';
     }
 
@@ -817,6 +831,82 @@
         } else {
             alert('Der Code konnte nicht gelesen werden. Bitte prüfen und erneut versuchen.');
         }
+    }
+
+    let scanStream = null;
+    let scanRAF = null;
+
+    async function startScan() {
+        const container = document.getElementById('scanContainer');
+        const video = document.getElementById('scanVideo');
+        const status = document.getElementById('scanStatus');
+        const startBtn = document.getElementById('startScanBtn');
+
+        if (typeof jsQR !== 'function') {
+            alert('Die QR-Scan-Funktion konnte nicht geladen werden. Bitte den Code manuell einfügen.');
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Kamerazugriff wird von diesem Browser nicht unterstützt. Bitte den Code manuell einfügen.');
+            return;
+        }
+
+        try {
+            scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        } catch (err) {
+            console.error(err);
+            alert('Kein Kamerazugriff möglich (' + err.name + '). Bitte Berechtigung erteilen oder den Code manuell einfügen.');
+            return;
+        }
+
+        video.srcObject = scanStream;
+        await video.play();
+        container.style.display = 'block';
+        startBtn.style.display = 'none';
+        status.textContent = 'Code in den Rahmen halten…';
+
+        const canvas = document.getElementById('scanCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        const tick = () => {
+            if (!scanStream) return;
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                    if (applyShareCode(code.data)) {
+                        status.textContent = 'Code erkannt ✓';
+                        stopScan();
+                        closeImportModal();
+                        return;
+                    } else {
+                        status.textContent = 'Erkannter Code ungültig – bitte den richtigen QR-Code scannen.';
+                    }
+                }
+            }
+            scanRAF = requestAnimationFrame(tick);
+        };
+        scanRAF = requestAnimationFrame(tick);
+    }
+
+    function stopScan() {
+        if (scanRAF) {
+            cancelAnimationFrame(scanRAF);
+            scanRAF = null;
+        }
+        if (scanStream) {
+            scanStream.getTracks().forEach(track => track.stop());
+            scanStream = null;
+        }
+        const video = document.getElementById('scanVideo');
+        if (video) video.srcObject = null;
+        const container = document.getElementById('scanContainer');
+        if (container) container.style.display = 'none';
+        const startBtn = document.getElementById('startScanBtn');
+        if (startBtn) startBtn.style.display = 'inline-flex';
     }
 
     function exportCSV() {
