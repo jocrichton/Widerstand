@@ -19,9 +19,9 @@
             --accent-error-hover: #b91c1c;
             --error-text-color: #dc2626;
 
-            --badge-bg: #ccfbf1;
-            --badge-text: #0f766e;
-            --badge-border: #14b8a6;
+            --badge-bg: #0f766e;
+            --badge-text: #ffffff;
+            --badge-border: #5eead4;
         }
 
         [data-theme="dark"] {
@@ -36,9 +36,9 @@
             --accent-error-hover: #b91c1c;
             --error-text-color: #f87171;
 
-            --badge-bg: #134e4a;
-            --badge-text: #99f6e4;
-            --badge-border: #2dd4bf;
+            --badge-bg: #14857b;
+            --badge-text: #ffffff;
+            --badge-border: #5eead4;
         }
 
         body {
@@ -186,6 +186,12 @@
             transition: all 0.2s;
             cursor: pointer;
             user-select: none;
+        }
+        body:not([data-view="compact"]) .channel-row {
+            cursor: default;
+        }
+        body:not([data-view="compact"]) .checkbox-label {
+            display: none;
         }
         .channel-row:not(:last-child) {
             border-bottom: 1px dashed var(--border-color);
@@ -490,7 +496,7 @@
                         </div>
                         <div class="input-group">
                             <label>Ziel (Ohm):</label>
-                            <input type="number" step="0.1" id="g${d}k${ch}" oninput="updateCalculation(${d}, ${ch}, true)">
+                            <input type="number" step="0.1" id="g${d}k${ch}" enterkeyhint="next" oninput="updateCalculation(${d}, ${ch}, true)">
                         </div>
                         <div class="result-box" id="res${d}k${ch}">Werte eingeben...</div>
                     </div>
@@ -501,6 +507,9 @@
     }
 
     function handleRowClick(event, d, ch) {
+        const isCompact = document.body.getAttribute('data-view') === 'compact';
+        if (!isCompact) return;
+
         if (event.target.tagName === 'INPUT' && event.target.type === 'number') {
             return;
         }
@@ -858,21 +867,22 @@
     };
 
     document.addEventListener('keydown', function(event) {
-    // Prüfen, ob die Enter-Taste gedrückt wurde
-    if (event.key === 'Enter') {
-        
+    // Prüfen, ob die Enter-Taste in einem der Widerstands-Wertefelder gedrückt wurde
+    if (event.key === 'Enter' && event.target.matches('.card input[type="number"]')) {
+
         // Verhindert das Standardverhalten (z. B. ein Formular abzusenden und die Seite neu zu laden)
         event.preventDefault();
 
-        // Alle Eingabefelder auf der Seite in einer Liste sammeln
-        const inputs = Array.from(document.querySelectorAll('input'));
+        // Nur die Zielwert-Eingabefelder in der Reihenfolge des Grids sammeln
+        const inputs = Array.from(document.querySelectorAll('.card input[type="number"]'));
 
         // Das Feld finden, in dem du dich gerade befindest
         const currentIndex = inputs.indexOf(event.target);
 
-        // Wenn das aktuelle Feld ein Input ist und noch ein weiteres danach existiert
         if (currentIndex > -1 && currentIndex < inputs.length - 1) {
             inputs[currentIndex + 1].focus(); // Fokus ins nächste Feld setzen
+        } else {
+            event.target.blur(); // Letztes Feld: Tastatur schließen
         }
     }
 });
