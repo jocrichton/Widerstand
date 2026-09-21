@@ -349,14 +349,14 @@
             position: fixed;
             right: calc(20px + env(safe-area-inset-right));
             bottom: calc(20px + env(safe-area-inset-bottom));
-            width: 56px;
-            height: 56px;
+            width: 40px;
+            height: 40px;
             padding: 0;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.05rem;
             line-height: 1;
             box-shadow: 0 4px 12px rgba(0,0,0,0.35);
             z-index: 500;
@@ -364,6 +364,29 @@
         }
         .fab:active {
             transform: scale(0.92);
+        }
+
+        .toast {
+            position: fixed;
+            right: calc(20px + env(safe-area-inset-right));
+            bottom: calc(20px + 40px + 12px + env(safe-area-inset-bottom));
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-width: 220px;
+            opacity: 0;
+            transform: translateY(6px);
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 500;
+        }
+        .toast.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .modal {
@@ -419,6 +442,7 @@
     <div class="grid" id="devicesGrid"></div>
 </div>
 
+<div id="wakeLockToast" class="toast"></div>
 <button id="wakeLockBtn" class="fab" onclick="toggleWakeLock()" style="background-color: #f59e0b;" title="Display anlassen" aria-label="Display anlassen">🔓</button>
 
 <div id="qrModal" class="modal" onclick="closeModal()">
@@ -987,6 +1011,19 @@
     }
 
     let wakeLock = null;
+    let toastTimeout = null;
+
+    function showToast(message) {
+        const toast = document.getElementById('wakeLockToast');
+        if (!toast) return;
+        toast.textContent = message;
+        toast.classList.add('visible');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 1800);
+    }
+
     async function toggleWakeLock() {
         const btn = document.getElementById('wakeLockBtn');
         if (!('wakeLock' in navigator)) {
@@ -1000,14 +1037,15 @@
                 btn.title = 'Display bleibt an (antippen zum Beenden)';
                 btn.setAttribute('aria-label', 'Display bleibt an (antippen zum Beenden)');
                 btn.style.backgroundColor = '#10b981';
+                showToast('Wake Lock aktiv – Display bleibt an');
                 wakeLock.addEventListener('release', () => {
                     wakeLock = null;
                     resetWakeLockBtn();
+                    showToast('Wake Lock deaktiviert');
                 });
             } else {
+                // Der 'release'-Listener oben übernimmt das UI-Reset und die Meldung
                 await wakeLock.release();
-                wakeLock = null;
-                resetWakeLockBtn();
             }
         } catch (err) {
             console.error(`${err.name}, ${err.message}`);
