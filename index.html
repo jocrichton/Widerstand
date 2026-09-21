@@ -345,6 +345,27 @@
             }
         }
 
+        .fab {
+            position: fixed;
+            right: calc(20px + env(safe-area-inset-right));
+            bottom: calc(20px + env(safe-area-inset-bottom));
+            width: 56px;
+            height: 56px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            line-height: 1;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            z-index: 500;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .fab:active {
+            transform: scale(0.92);
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -386,7 +407,6 @@
                 <button class="btn-step" onclick="adjustDeviceCount(1)" type="button">+</button>
             </div>
             <button id="viewModeBtn" onclick="toggleViewMode()" style="background-color: #6b21a8;">Modus: Bearbeiten ✏️</button>
-            <button id="wakeLockBtn" onclick="toggleWakeLock()" style="background-color: #f59e0b;">Display anlassen 🔓</button>
             <button onclick="toggleTheme()" class="btn-secondary">Muster wechseln (Light/Dark)</button>
             <button onclick="exportCSV()" class="btn-secondary">CSV Export</button>
             <label class="btn-label btn-secondary">CSV Import<input type="file" id="csvFile" accept=".csv" onchange="importCSV(this)"></label>
@@ -398,6 +418,8 @@
 
     <div class="grid" id="devicesGrid"></div>
 </div>
+
+<button id="wakeLockBtn" class="fab" onclick="toggleWakeLock()" style="background-color: #f59e0b;" title="Display anlassen" aria-label="Display anlassen">🔓</button>
 
 <div id="qrModal" class="modal" onclick="closeModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -974,7 +996,9 @@
         try {
             if (wakeLock === null) {
                 wakeLock = await navigator.wakeLock.request('screen');
-                btn.textContent = 'Display bleibt an 🔒';
+                btn.textContent = '🔒';
+                btn.title = 'Display bleibt an (antippen zum Beenden)';
+                btn.setAttribute('aria-label', 'Display bleibt an (antippen zum Beenden)');
                 btn.style.backgroundColor = '#10b981';
                 wakeLock.addEventListener('release', () => {
                     wakeLock = null;
@@ -993,7 +1017,9 @@
 
     function resetWakeLockBtn() {
         const btn = document.getElementById('wakeLockBtn');
-        btn.textContent = 'Display anlassen 🔓';
+        btn.textContent = '🔓';
+        btn.title = 'Display anlassen';
+        btn.setAttribute('aria-label', 'Display anlassen');
         btn.style.backgroundColor = '#f59e0b';
     }
 
